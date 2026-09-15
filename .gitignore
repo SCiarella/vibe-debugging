@@ -1,0 +1,12 @@
+.vscode
+
+# virtual environment
+.venv/
+
+# Python build/install artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/

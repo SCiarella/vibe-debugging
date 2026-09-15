@@ -1,18 +1,107 @@
 # Hands-on: fix a script that runs but lies
 
-**Time:** about 15 minutes · **You need:** Python, and an AI coding assistant
-(your own, or the one the facilitator is serving)
+*The person who wrote `analysis.py` has left the lab. Before they went, they did
+the one thing that makes analysis code reproducible: they left
+`test_analysis.py` behind, pinning the diffusion coefficient the published
+analysis produced — 0.49 µm²/s for a 1 µm bead in water at 25 °C. It is a
+property of the bead, so a new trajectory of that bead should reproduce it.
 
-The script measures how fast a bead diffuses in water. It is the sort of
-number you would put in a paper: a diffusion coefficient in µm²/s.
+You have just added a new trajectory, and it looks a little different from the
+one the paper used. You want to confirm the code before the number goes into a
+figure caption. The test is the only witness you have.*
+
+> **Your goal.** Get a diffusion coefficient you would sign your name to.
+>
+> - `python analysis.py` prints something close to **0.49 µm²/s**
+> - `pytest -q` reports **2 passed**
+> - you can explain why the first number the script prints is wrong
+
+**20 minutes** · Python 3.9+ · the AI assistant you already use · nothing to
+download
+
+Five things are wrong with this script. One stops it dead and takes a single
+line to fix — that one is the decoy. The other four let it print a perfectly
+reasonable-looking number, and each hides behind the one before it. One of the
+five is not a line of Python at all.
 
 ## What is in this folder
 
 | File | What it is |
 |---|---|
-| `analysis.py` | A small script that reports the diffusion coefficient of a bead |
-| `bead_trajectory.csv` | 1200 frames of one tracked bead — 60 s at 20 fps |
-| `test_analysis.py` | A test with a stored expected value |
+| `analysis.py` | The script that reports the diffusion coefficient of a bead |
+| `bead_trajectory.csv` | Your new trajectory — 750 frames, 60 s of wall clock |
+| `test_analysis.py` | Two tests, one of which pins the expected value |
+| `d_cache.json` | A diffusion coefficient stored by an earlier run of the pipeline |
+| `pyproject.toml` | The dependencies, so one command installs them |
+
+> **The rules.** The test is the judge: it is the only thing in this folder that
+> knows the answer, and the script's output is an opinion. **Do not edit
+> `test_analysis.py`.** Keep the function signatures — this module is imported by
+> the rest of the pipeline, which you cannot see. Run the test after every
+> change, especially when you are sure.
+
+---
+
+## Before you start (optional, 5 min)
+
+Skip this if you already have a working Python and an editor you like.
+
+- **Python 3.9 or newer** — <https://www.python.org/downloads/>. On Windows, tick
+  *Add python.exe to PATH* in the installer, or none of the commands below will
+  be found. Check with `python3 --version`.
+- **VS Code** — <https://code.visualstudio.com/Download>, plus the
+  [Python extension](https://marketplace.visualstudio.com/items?itemName=ms-python.python)
+  so the editor can find the `.venv` you create next (*Python: Select
+  Interpreter*).
+
+> **Which assistant?** There is no model served for the room. Use whatever you
+> already have — Copilot, Codeium, an institutional tool, a browser tab — or the
+> **GitHub Copilot free plan** in VS Code (sign in with a GitHub account; this
+> exercise uses a handful of chat requests). Prefer **Ask** mode over Agent
+> mode: you want to read the whole diff before anything is written to disk.
+
+Nothing else needs installing. Nothing is downloaded, because you bring the
+assistant you already have.
+
+## Step 0 — Install the dependencies (1 min)
+
+Create a virtual environment, then let `pip` read the dependency list out of
+`pyproject.toml`. From the folder that contains this README:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate      # Windows: .venv\Scripts\activate
+pip install -e ".[test]"
+```
+
+Check that it worked:
+
+```bash
+python -c "import numpy, pandas, pytest; print('ok')"
+```
+
+If it prints `ok`, the environment is active. If `numpy` is not found, it is
+not — check that `which python` points somewhere inside `.venv/`.
+
+<details>
+<summary><b>What all of that actually did</b></summary>
+
+`python3 -m venv .venv` copies a Python interpreter and its package directory
+into `.venv/`. `source .venv/bin/activate` puts that copy first on your `PATH`,
+so from then on `python` and `pip` mean *this project's* Python and everything
+installs into `.venv/` rather than into your system Python. `.venv/` is already
+in `.gitignore`. `deactivate` leaves the environment, and deleting the folder
+throws it away — starting over is cheap, so do it whenever the environment looks
+wrong.
+
+`-e` means *editable*: `analysis.py` is installed as a package that points back
+at this folder, so the code you edit is the code that runs, and you never
+reinstall after a change. The `[test]` extra adds `pytest`; if you only want to
+run the script, plain `pip install -e .` is enough.
+
+</details>
+
+---
 
 ## Step 1 — Run it (1 min)
 
@@ -22,17 +111,29 @@ python analysis.py
 
 It does not work. Read the error before you touch anything.
 
+> **Checkpoint.** You have read the traceback and you have not touched the
+> physics yet. Fix the crash, get the script running, and then answer one
+> question before you go further: does a script that *runs* correctly produce a
+> *correct* number?
+
 ## Step 2 — Look at the data, not the code (3 min)
 
 ```bash
-python -c "import pandas as pd; d = pd.read_csv('bead_trajectory.csv'); print(d.head()); print(d.describe())"
+python -c "import pandas as pd; d = pd.read_csv('bead_trajectory.csv'); print(d.head()); print(d.describe()); print(d['Time (s)'].diff().unique())"
 ```
 
-Two questions worth answering before you ask an assistant for anything:
+Three questions worth answering before you open a chat box:
 
 1. What columns are actually in this file?
 2. The script claims to report **µm²/s**. What is the x-axis it is fitting
    against — is it measured in seconds?
+3. The script keeps a sampling interval in `FRAME_INTERVAL`. Compare it with the
+   spacing you just printed. Which of the two is the data's opinion, and which
+   is somebody's memory?
+
+> **Checkpoint.** Everything the assistant gets wrong in Step 4, it gets wrong
+> because one of these three answers was assumed rather than checked. If you
+> cannot answer all three, you are about to hand it a trap.
 
 ## Step 3 — Run the test (2 min)
 
@@ -40,64 +141,104 @@ Two questions worth answering before you ask an assistant for anything:
 pytest -q
 ```
 
-The test fails. That failure is the most useful information you have.
-What is the script reporting, and what should it be?
+One test fails and one passes. The failure is the most useful information you
+have: it contains both the number the script is reporting and the number it
+should be reporting. The gap between them is the size of the bug.
 
-## Step 4 — Now use the assistant (5 min)
+Look at the test that *passed*, too. It will pass for the rest of the session,
+whatever you do. Ask yourself what it is actually protecting you from.
+
+## Step 4 — Bring in the assistant (8 min)
 
 Use this three-part prompt (objective, context, constraints). It is short on
 purpose — try writing your own version first if you prefer.
 
 ```
-Fix analysis.py so that it reports the diffusion coefficient in µm²/s,
-using the Time (s) column as the time axis.
+analysis.py reports a diffusion coefficient that the value recorded in
+test_analysis.py says is wrong. Work out why, explain it, then fix it.
 
 Context: bead_trajectory.csv has columns Frame, Time (s), X (µm), Y (µm).
-Frames are 0.05 s apart; Time (s) is the same information in seconds.
+analysis.py keeps the sampling interval in FRAME_INTERVAL.
 
 Constraints: keep the function signatures, keep it readable, and explain
-what was wrong. Do not change test_analysis.py.
+what is wrong before you edit anything. Do not change test_analysis.py.
 ```
 
-Then:
+Then hold it to the following. This is the part of the exercise that transfers
+to real work:
 
-- Ask it to **explain the bug before it edits anything**. Did it find the real
-  one, or only the obvious one?
-- Watch what else it reaches for. If it proposes multiplying the frame slope by
-  20, ask why that number: it is a copy of `1 / 0.05`, and it will be wrong the
-  day someone re-exports the trajectory at another frame rate. If it divides by
-  2 instead of 4, it has assumed one dimension instead of two.
-- Read the diff. Every line.
+- **Make it explain before it edits.** Did it find the real defect, or only the
+  obvious one? If it says "the time axis is the frame number", that is a
+  diagnosis — make it commit to a fix before you let it near the file.
+- **Watch which time axis it reaches for.** If it writes `lags * FRAME_INTERVAL`,
+  ask where that number came from and whether it describes *this* file. If it
+  writes `lags * 0.05`, that is the same mistake with the constant copied into
+  the function body.
+- **Run the test again after it edits.** Something other than the code can keep
+  an old number alive. If your fix is correct and the answer does not move, do
+  not edit the code again — go looking for what else could be supplying it.
+- **Read the diff. Every line.** You are the one whose name goes on the paper.
 
-## Step 5 — Verify (3 min)
+This is the loop you are running, four or five times:
+
+```mermaid
+flowchart LR
+    A[Predict] --> B[Change one thing]
+    B --> C[Run the test]
+    C -->|red| D[Re-read the failure]
+    D --> A
+    C -->|green| E[Done]
+```
+
+> **Checkpoint.** The assistant is a fast, confident, tireless colleague who has
+> never seen your data and cannot tell when it is guessing. Everything it says
+> is a hypothesis. You are the one running the experiment.
+
+## Step 5 — Verify, then break it on purpose (3 min)
 
 ```bash
+python analysis.py
 pytest -q
 ```
+
+The script should print `D = 0.4902 µm²/s`, and both tests should pass.
 
 Now break it on purpose: fit against `Frame` again and confirm the test fails.
 **A test you have never seen fail is not a test.**
 
-## Definition of done
+---
+
+## You are done when
 
 - [ ] `python analysis.py` prints a diffusion coefficient of about 0.49 µm²/s
-- [ ] `pytest -q` passes
-- [ ] You can say out loud what the bug was and why the wrong answer looked
-      plausible
+- [ ] `pytest -q` reports `2 passed`
+- [ ] You can say out loud what each of the five defects was, and how each one
+      hid behind the one before it
+- [ ] You can say which of the five the assistant found on its own and which
+      ones it needed pushing to reach
+- [ ] You have watched the test fail at least once, on purpose
 - [ ] The prompt you used is saved next to the code (a comment, or a
       `PROMPTS.md`)
 
-## Where the number comes from
+## Why 0.49, and not something else
 
 0.49 µm²/s is not a magic constant. It is Stokes–Einstein,
 $D = k_B T / 6\pi\eta a$, for a 1 µm sphere in water at 25 °C. If you have five
-minutes spare, recover the bead radius from your fitted $D$ and check that it
-is 0.5 µm.
+minutes spare, recover the bead radius from your fitted $D$ and check that it is
+0.5 µm.
 
-## Data
+<details>
+<summary><b>Where the data comes from</b></summary>
 
 `bead_trajectory.csv` is synthetic — a two-dimensional Brownian walk with a
 per-axis step of $\sqrt{2D\,\Delta t}$, using $D = 0.4906$ µm²/s and
-$\Delta t = 0.05$ s. Synthetic on purpose: a real trajectory would carry
-localisation noise and drift, and you want to be debugging the units today,
-not the physics.
+$\Delta t = 0.08$ s, 12.5 frames per second, 750 frames of it.
+
+Synthetic on purpose: a real trajectory would carry localisation noise and
+drift, and you want to be debugging the units today, not the physics.
+
+`Time (s)` is not decoration. It is the only statement of the sampling interval
+that travels with the measurement — every other copy of that number lives in
+someone's code, and code outlives the thing it was written about.
+
+</details>

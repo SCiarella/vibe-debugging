@@ -31,9 +31,11 @@ def test_diffusion_coefficient_matches_recorded_value():
 def test_msd_is_linear_in_time():
     """Normal diffusion: MSD grows linearly with lag time.
 
-    Note what this test does *not* check -- the units of the slope. It
-    passes both before and after the fix, which is the point: a structural
-    test cannot catch a unit error. Only the stored value can.
+    Note what this test does *not* check -- the scale of either axis. It
+    passes with the frame number as the time axis, with a divisor taken from
+    the one-dimensional formula, and with a value read back out of a stale
+    cache; all it says is that the cloud of points is straight. A structural
+    test cannot see any of those. Only the stored value can.
     """
     df = load_trajectory(DATA)
     msd = mean_squared_displacement(df)
