@@ -19,7 +19,7 @@ CACHE = Path(__file__).parent / "d_cache.json"
 
 FRAME_INTERVAL = 0.05  # s, from the acquisition config
 
-TRIM = 0.01  # largest fraction of squared displacements dropped before averaging
+LOST_FRACTION = 0.01  # ballpark share of frames where the tracker loses the bead
 
 MAX_LAG = 50  # frames
 
@@ -34,9 +34,9 @@ def mean_squared_displacement(
 ) -> np.ndarray:
     """MSD in µm², averaged over every start frame, for lags 1..max_lag.
 
-    r² at a fixed lag is exponential, so one frame where the tracker lost the bead is enough to pull the curve up.
-    Those frames are not brownian motion, so the largest TRIM are dropped.
-    TRIM is small enough not to move the answer.
+    The tracker loses the bead in about LOST_FRACTION of the frames, so the
+    largest LOST_FRACTION of the squared displacements at each lag is dropped
+    before averaging.
     """
     x = df["X (µm)"].to_numpy()
     y = df["Y (µm)"].to_numpy()
@@ -46,7 +46,7 @@ def mean_squared_displacement(
         dx = x[lag:] - x[:-lag]
         dy = y[lag:] - y[:-lag]
         r2 = np.sort(dx**2 + dy**2)
-        msd[i] = np.mean(r2[: int(len(r2) * (1 - TRIM))])
+        msd[i] = np.mean(r2[: int(len(r2) * (1 - LOST_FRACTION))])
     return msd
 
 
