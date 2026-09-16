@@ -23,6 +23,7 @@
 | `test_analysis.py` | Two tests, one of which pins the expected value |
 | `d_cache.json` | A diffusion coefficient stored by an earlier run of the pipeline |
 | `pyproject.toml` | The dependencies, so one command installs them |
+| `SOLUTION.md` | An answer sheet for this exercise |
 
 > **The rules.** The test is the judge: it is the only thing in this folder that knows the answer, and the script's output is an opinion. **Do not edit `test_analysis.py`.**  Run the test after every change, especially when you are sure.
 
@@ -77,7 +78,7 @@ It does not work. Read the error before you touch anything.
 
 > **Checkpoint.** You have read the traceback and you have not touched the physics yet. Fix the crash, get the script running, and then answer one question before you go further: does a script that *runs* correctly produce a *correct* number?
 
-## Step 2 — Look at the data, not the code 
+## Step 2 — Look at the data 
 
 ```bash
 python -c "import pandas as pd; d = pd.read_csv('bead_trajectory.csv'); print(d.head()); print(d.describe()); print(d['Time (s)'].diff().unique())"
@@ -86,52 +87,45 @@ python -c "import pandas as pd; d = pd.read_csv('bead_trajectory.csv'); print(d.
 Three questions worth answering before you open a chat box:
 
 1. What columns are actually in this file?
-2. The script claims to report **µm²/s**. What is the x-axis it is fitting against — is it measured in seconds?
+2. The script claims to report **µm²/s**. Are the units correct?
 3. The script keeps a sampling interval in `FRAME_INTERVAL`. Compare it with the spacing you just printed. Which of the two is the data's opinion, and which is somebody's memory?
 
 > **Checkpoint.** Everything the assistant gets wrong in Step 4, it gets wrong because one of these three answers was assumed rather than checked. If you cannot answer all three, you are about to hand it a trap.
 
-## Step 3 — Run the test (2 min)
+## Step 3 — Run the test
 
 ```bash
 pytest -q
 ```
 
-One test fails and one passes. The failure is the most useful information you have: it contains both the number the script is reporting and the number it should be reporting. The gap between them is the size of the bug.
+One test fails and one passes. The failure is the most useful information you have: it contains both the number the script is reporting and the number it should be reporting, and the gap between them is the size of the bug.
 
 Look at the test that *passed*, too. It will pass for the rest of the session, whatever you do. Ask yourself what it is actually protecting you from.
 
-## Step 4 — Bring in the assistant (8 min)
+## Step 4 — Bring in the assistant
 
-Use this three-part prompt (objective, context, constraints). It is short on purpose — try writing your own version first if you prefer.
+**Ask mode first.** Paste this and read the answer. Ask mode reads the whole folder, like everything else, but it cannot write to it — you get a proposed diff and nothing on disk changes:
 
 ```
-analysis.py reports a diffusion coefficient that the value recorded in test_analysis.py says is wrong. Work out why, explain it, then fix it.
+analysis.py reports a diffusion coefficient that the value recorded in test_analysis.py says is wrong. Work out why, explain it, then show me the fix.
 
 Context: bead_trajectory.csv has columns Frame, Time (s), X (µm), Y (µm). analysis.py keeps the sampling interval in FRAME_INTERVAL.
 
-Constraints: keep the function signatures, keep it readable, and explain what is wrong before you edit anything. Do not change test_analysis.py.
+Constraints: keep the function signatures, keep it readable. Do not change test_analysis.py.
 ```
 
-Then hold it to the following. This is the part of the exercise that transfers to real work:
+You are reading for one thing above all: **which time axis it chose.** `Time (s)`, or the constant that was already in the file? The second one is what the code alone suggests, and it is wrong for this data.
 
-- **Make it explain before it edits.** Did it find the real defect, or only the obvious one? If it says "the time axis is the frame number", that is a diagnosis — make it commit to a fix before you let it near the file.
-- **Watch which time axis it reaches for.** If it writes `lags * FRAME_INTERVAL`, ask where that number came from and whether it describes *this* file. If it writes `lags * 0.05`, that is the same mistake with the constant copied into the function body.
-- **Run the test again after it edits.** A change you have not re-checked is not a fix, and when a result surprises you, suspect the explanation before the measurement.
-- **Read the diff. Every line.** You are the one whose name goes on the paper.
+**Then agent mode.** Same task, but now it can edit `analysis.py` and run the tests itself. It will probably run `pytest` and keep going until the suite is green, so plan to spend your time on the result rather than on the conversation. Read the diff anyway: you are the one whose name goes on the paper.
 
-The loop you are running looks like this:
+| | Ask mode | Agent mode |
+|---|---|---|
+| What you get back | a proposed diff | a modified working tree |
+| Does it run `pytest` | no | yes |
 
-```mermaid
-flowchart LR
-    A[Predict] --> B[Change one thing]
-    B --> C[Run the test]
-    C -->|red| D[Re-read the failure]
-    D --> A
-    C -->|green| E[Done]
-```
+The difference between them is what they can *do*, not what they can *see*. Both read every file in the folder, and whatever is sitting there becomes part of the context before anyone has asked a question. The tests are what tell you whether that mattered.
 
-> **Checkpoint.** The assistant is a fast, confident, tireless colleague who has never seen your data and cannot tell when it is guessing. Everything it says is a hypothesis. You are the one running the experiment.
+> **Checkpoint.** The assistant is fast, tireless and never unsure, and none of that is evidence. The test is the only thing here that cannot be talked into a wrong answer.
 
 ## Step 5 — Verify, then break it on purpose (3 min)
 
@@ -151,7 +145,7 @@ Now break it on purpose: fit against `Frame` again and confirm the test fails. *
 - [ ] `python analysis.py` prints a diffusion coefficient of about 0.49 µm²/s
 - [ ] `pytest -q` reports `2 passed`
 - [ ] You can say out loud what each defect was, and how each one hid behind the one before it
-- [ ] You can say which defects the assistant found on its own and which ones it needed pushing to reach
+- [ ] You can say which defects the assistant found on its own and which ones only the tests caught
 - [ ] You have watched the test fail at least once, on purpose
 - [ ] The prompt you used is saved next to the code (a comment, or a `PROMPTS.md`)
 
