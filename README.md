@@ -14,6 +14,19 @@
 *Tests:* what you get from writing the expected answer down before you need it. 
 *Vibe coding:* debugging with an assistant, predict, change one thing, run the test, read the failure, keep the assistant honest about what it actually knows.
 
+<details>
+<summary><b>Where 0.49 µm²/s comes from, and where the trajectory comes from</b></summary>
+
+0.49 µm²/s is not a magic constant. It is Stokes–Einstein, $D = k_B T / 6\pi\eta a$, for a 1 µm sphere in water at 25 °C. If you have five minutes spare, recover the bead radius from your fitted $D$ and check that it is 0.5 µm.
+
+`bead_trajectory.csv` is synthetic — a two-dimensional Brownian walk with a per-axis step of $\sqrt{2D\,\Delta t}$, using $D = 0.4906$ µm²/s and $\Delta t = 0.08$ s, 12.5 frames per second, 750 frames of it.
+
+Synthetic on purpose: a real trajectory would carry localisation noise and drift, and you want to be debugging the units today, not the physics.
+
+`Time (s)` is not decoration. It is the only statement of the sampling interval that travels with the measurement — every other copy of that number lives in someone's code, and code outlives the thing it was written about.
+
+</details>
+
 ## What is in this folder
 
 | File | What it is |
@@ -36,10 +49,10 @@ Skip this if you already have a working Python and an editor you like.
 - **Python 3.9 or newer** — <https://www.python.org/downloads/>. On Windows, tick *Add python.exe to PATH* in the installer, or none of the commands below will be found. Check with `python3 --version`.
 - **VS Code** — <https://code.visualstudio.com/Download>, plus the [Python extension](https://marketplace.visualstudio.com/items?itemName=ms-python.python) so the editor can find the `.venv` you create next (*Python: Select Interpreter*).
 
-> **Which assistant?** Use whatever you already have — Copilot, Codeium, an institutional tool, a browser tab — or the **GitHub Copilot free plan** in VS Code (sign in with a GitHub account; this exercise uses a handful of chat requests). Prefer **Ask** mode over Agent mode: you want to read the whole diff before anything is written to disk.
+> **Which assistant?** Use whatever you already have — Copilot, Codeium, an institutional tool, a browser tab — or the **GitHub Copilot free plan** in VS Code (sign in with a GitHub account; this exercise uses a handful of chat requests). 
 
 
-## Step 0 — Install the dependencies (1 min)
+## Step 0 — Install the dependencies
 
 Create a virtual environment, then let `pip` read the dependency list out of `pyproject.toml`. From the folder that contains this README:
 
@@ -104,8 +117,7 @@ Look at the test that *passed*, too. It will pass for the rest of the session, w
 
 ## Step 4 — Bring in the assistant
 
-**Ask mode first.** Paste this and read the answer. Ask mode reads the whole folder, like everything else, but it cannot write to it — you get a proposed diff and nothing on disk changes:
-
+**Ask mode first.** You can use this prompt example:
 ```
 analysis.py reports a diffusion coefficient that the value recorded in test_analysis.py says is wrong. Work out why, explain it, then show me the fix.
 
@@ -113,10 +125,9 @@ Context: bead_trajectory.csv has columns Frame, Time (s), X (µm), Y (µm). anal
 
 Constraints: keep the function signatures, keep it readable. Do not change test_analysis.py.
 ```
+or write your own. The assistant will read the whole folder, so it can see the data, the script, and the test. It cannot write to disk, so it will propose a diff rather than changing anything.
 
-You are reading for one thing above all: **which time axis it chose.** `Time (s)`, or the constant that was already in the file? The second one is what the code alone suggests, and it is wrong for this data.
-
-**Then agent mode.** Same task, but now it can edit `analysis.py` and run the tests itself. It will probably run `pytest` and keep going until the suite is green, so plan to spend your time on the result rather than on the conversation. Read the diff anyway: you are the one whose name goes on the paper.
+**Then agent mode.** Same task, but now it can edit `analysis.py` and run the tests itself. It will probably run `pytest` and keep going until the suite is green, so plan to spend your time on the result rather than on the conversation. *Read the diff anyway: **you** are the one whose name goes on the paper*.
 
 | | Ask mode | Agent mode |
 |---|---|---|
@@ -127,7 +138,7 @@ The difference between them is what they can *do*, not what they can *see*. Both
 
 > **Checkpoint.** The assistant is fast, tireless and never unsure, and none of that is evidence. The test is the only thing here that cannot be talked into a wrong answer.
 
-## Step 5 — Verify, then break it on purpose (3 min)
+## Step 5 — Verify, then break it on purpose
 
 ```bash
 python analysis.py
@@ -136,7 +147,18 @@ pytest -q
 
 The script should print `D = 0.4902 µm²/s`, and both tests should pass.
 
-Now break it on purpose: fit against `Frame` again and confirm the test fails. **A test you have never seen fail is not a test.**
+Now the interesting half: **you** introduce the fault, and the assistant has to find it without being told what you did. Pick one, or invent your own, and hand over nothing but the symptom:
+
+| Break it like this | What you see | Does the suite notice? |
+|---|---|---|
+| `slope / 4.0` → `slope / 2.0` | `D = 0.9804` | yes |
+| compute the MSD from the first pair only, `(x[lag] - x[0])**2 + (y[lag] - y[0])**2` | `D = 0.1570` | yes |
+| `float(slope / 4.0)` → `int(slope / 4.0)` | `D = 0.0000` | yes |
+| `{d:.4f}` → `{d * 1000:.4f}` in the print inside `main()` | `D = 490.2106` | **no** |
+
+That last row is the one worth doing. The tests call `diffusion_coefficient` directly and never touch `main()`, so a fault there leaves the suite green: the run passes, and the number in the caption is wrong. It is the same shape of failure as the one you started with, and nobody's test suite is watching for it.
+
+Watch what the assistant does with a green suite and no failure message to read. Does it reason about the code, or ask you what changed? Does it believe the tests, or the number it just printed? **A test you have never seen fail is not a test.**
 
 ---
 
@@ -144,22 +166,6 @@ Now break it on purpose: fit against `Frame` again and confirm the test fails. *
 
 - [ ] `python analysis.py` prints a diffusion coefficient of about 0.49 µm²/s
 - [ ] `pytest -q` reports `2 passed`
-- [ ] You can say out loud what each defect was, and how each one hid behind the one before it
+- [ ] You can say out loud what each defect was
 - [ ] You can say which defects the assistant found on its own and which ones only the tests caught
 - [ ] You have watched the test fail at least once, on purpose
-- [ ] The prompt you used is saved next to the code (a comment, or a `PROMPTS.md`)
-
-## Why 0.49, and not something else
-
-0.49 µm²/s is not a magic constant. It is Stokes–Einstein, $D = k_B T / 6\pi\eta a$, for a 1 µm sphere in water at 25 °C. If you have five minutes spare, recover the bead radius from your fitted $D$ and check that it is 0.5 µm.
-
-<details>
-<summary><b>Where the data comes from</b></summary>
-
-`bead_trajectory.csv` is synthetic — a two-dimensional Brownian walk with a per-axis step of $\sqrt{2D\,\Delta t}$, using $D = 0.4906$ µm²/s and $\Delta t = 0.08$ s, 12.5 frames per second, 750 frames of it.
-
-Synthetic on purpose: a real trajectory would carry localisation noise and drift, and you want to be debugging the units today, not the physics.
-
-`Time (s)` is not decoration. It is the only statement of the sampling interval that travels with the measurement — every other copy of that number lives in someone's code, and code outlives the thing it was written about.
-
-</details>
