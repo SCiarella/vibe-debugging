@@ -99,13 +99,12 @@ It does not work. Read the error before you touch anything.
 python -c "import pandas as pd; d = pd.read_csv('bead_trajectory.csv'); print(d.head()); print(d.describe()); print(d['Time (s)'].diff().unique())"
 ```
 
-Three questions worth answering before you open a chat box:
+Two questions worth answering before you open a chat box:
 
 1. What columns are actually in this file?
 2. The script claims to report **µm²/s**. Are the units correct?
-3. The script keeps a sampling interval in `FRAME_INTERVAL`. Compare it with the spacing you just printed. Which of the two is the data's opinion, and which is somebody's memory?
 
-> **Checkpoint.** Everything the assistant gets wrong in Step 4, it gets wrong because one of these three answers was assumed rather than checked. If you cannot answer all three, you are about to hand it a trap.
+> **Checkpoint.** Everything the assistant gets wrong in Step 4, it gets wrong because one of these answers was assumed rather than checked. If you cannot answer both, you are about to hand it a trap.
 
 ## Step 3 — Run the test
 
@@ -123,7 +122,7 @@ Look at the test that *passed*, too. It will pass for the rest of the session, w
 ```
 analysis.py reports a diffusion coefficient that the value recorded in test_analysis.py says is wrong. Work out why, explain it, then show me the fix.
 
-Context: bead_trajectory.csv has columns Frame, Time (s), X (µm), Y (µm). analysis.py keeps the sampling interval in FRAME_INTERVAL.
+Context: bead_trajectory.csv has columns Frame, Time (s), X (µm), Y (µm). analysis.py takes the frame rate from the acquisition record.
 
 Constraints: keep the function signatures, keep it readable. Do not change test_analysis.py.
 ```
@@ -153,10 +152,10 @@ Now the interesting half: **you** introduce the fault, and the assistant has to 
 
 | Break it like this | What you see | Does the suite notice? |
 |---|---|---|
-| `slope / 4.0` → `slope / 2.0` | `D = 0.9273` | yes |
-| compute the MSD from the first pair only, `(x[lag] - x[0])**2 + (y[lag] - y[0])**2` | `D = 0.0790` | yes |
+| `slope / 4.0` → `slope / 2.0` | `D = 0.9576` | yes |
+| compute the MSD from the first pair only, `(x[lag] - x[0])**2 + (y[lag] - y[0])**2` | `D = 0.0801` | yes |
 | `float(slope / 4.0)` → `int(slope / 4.0)` | `D = 0.0000` | yes |
-| `{d:.4f}` → `{d * 1000:.4f}` in the print inside `main()` | `D = 463.6712` | **no** |
+| `{d:.4f}` → `{d * 1000:.4f}` in the print inside `main()` | `D = 478.8091` | **no** |
 
 That last row is the one worth doing. The tests call `diffusion_coefficient` directly and never touch `main()`, so a fault there leaves the suite green: the run passes, and the number in the caption is wrong. It is the same shape of failure as the one you started with, and nobody's test suite is watching for it.
 

@@ -2,6 +2,6 @@
   "trajectory": "bead_trajectory.csv",
   "frames_per_second": 12.5,
   "max_lag": 50,
-  "d": 0.0741873965,
+  "d": 0.0766094481,
   "computed": "2026-08-30T09:14:02"
 }

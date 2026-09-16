@@ -18,13 +18,12 @@ import pandas as pd
 # TODO: this path only exists on the machine where the script was written
 DATA = Path("/Users/yourname/Downloads/bead_trajectory.csv")
 
-# Written by the acquisition pipeline for every trajectory it tracks. Read back
-# here so a re-run does not have to refit a trajectory that was done already.
+# Written by the acquisition pipeline for every trajectory it tracks: the rate it
+# ran at, and the coefficient a previous run computed. Read back here so a re-run
+# does not have to refit a trajectory that was done already.
 CACHE = Path(__file__).parent / "d_cache.json"
 
-FRAME_INTERVAL = 0.05  # s, from the acquisition config
-
-LOST_FRACTION = 0.01  # ballpark share of frames where the tracker loses the bead
+LOST_FRACTION = 0.003  # ballpark share of frames where the tracker loses the bead
 
 MAX_LAG = 50  # frames
 
@@ -69,10 +68,15 @@ def diffusion_coefficient(df: pd.DataFrame, max_lag: int = MAX_LAG) -> float:
     return float(slope / 2.0)
 
 
+def frame_rate() -> float:
+    """Frames per second, as recorded by the acquisition."""
+    return float(json.loads(CACHE.read_text())["frames_per_second"])
+
+
 def main() -> None:
     df = load_trajectory(DATA)
     d = diffusion_coefficient(df)
-    print(f"D = {d:.4f} µm²/s, lags up to {MAX_LAG * FRAME_INTERVAL:.2f} s")
+    print(f"D = {d:.4f} µm²/s, lags up to {MAX_LAG / frame_rate():.2f} s")
 
 
 if __name__ == "__main__":
