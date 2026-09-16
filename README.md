@@ -153,7 +153,7 @@ Now the interesting half: **you** introduce the fault, and the assistant has to 
 | Break it like this | What you see | Does the suite notice? |
 |---|---|---|
 | `slope / 4.0` → `slope / 2.0` | `D = 0.9576` | yes |
-| compute the MSD from the first pair only, `(x[lag] - x[0])**2 + (y[lag] - y[0])**2` | `D = 0.0801` | yes |
+| compute the MSD from the first pair only, `(x[lag] - x[0])**2 + (y[lag] - y[0])**2` | `D ≈ 0.08` | yes |
 | `float(slope / 4.0)` → `int(slope / 4.0)` | `D = 0.0000` | yes |
 | `{d:.4f}` → `{d * 1000:.4f}` in the print inside `main()` | `D = 478.8091` | **no** |
 
