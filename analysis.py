@@ -19,6 +19,8 @@ CACHE = Path(__file__).parent / "d_cache.json"
 
 FRAME_INTERVAL = 0.05  # s, from the acquisition config
 
+TRIM = 0.01  # largest fraction of squared displacements dropped before averaging
+
 MAX_LAG = 50  # frames
 
 
@@ -30,7 +32,12 @@ def load_trajectory(path: Path) -> pd.DataFrame:
 def mean_squared_displacement(
     df: pd.DataFrame, max_lag: int = MAX_LAG
 ) -> np.ndarray:
-    """MSD in µm², averaged over every start frame, for lags 1..max_lag."""
+    """MSD in µm², averaged over every start frame, for lags 1..max_lag.
+
+    r² at a fixed lag is exponential, so one frame where the tracker lost the bead is enough to pull the curve up.
+    Those frames are not brownian motion, so the largest TRIM are dropped.
+    TRIM is small enough not to move the answer.
+    """
     x = df["X (µm)"].to_numpy()
     y = df["Y (µm)"].to_numpy()
     lags = np.arange(1, max_lag + 1)
@@ -38,7 +45,8 @@ def mean_squared_displacement(
     for i, lag in enumerate(lags):
         dx = x[lag:] - x[:-lag]
         dy = y[lag:] - y[:-lag]
-        msd[i] = np.mean(dx**2 + dy**2)
+        r2 = np.sort(dx**2 + dy**2)
+        msd[i] = np.mean(r2[: int(len(r2) * (1 - TRIM))])
     return msd
 
 

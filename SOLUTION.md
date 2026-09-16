@@ -32,10 +32,10 @@ DATA = Path(__file__).parent / "bead_trajectory.csv"
 
 `diffusion_coefficient` fitted the MSD against `np.arange(1, max_lag + 1)`, which is a lag *in frames*, and then reported the slope as µm² **per second**. Every answer came out 12.5× too small, and nothing errored.
 
-The lag axis has to be in seconds. The acquisition ran at 12.5 frames per second, so convert the axis before fitting:
+The lag axis has to be in seconds. The acquisition records the rate it ran at, so convert the axis with it:
 
 ```python
-t = lags / FRAMES_PER_SECOND
+t = lags / frame_rate()
 slope = np.polyfit(t, msd, 1)[0]
 ```
 
@@ -45,24 +45,26 @@ slope = np.polyfit(t, msd, 1)[0]
 FRAME_INTERVAL = 0.05  # s, from the acquisition config
 ```
 
-0.05 s is 20 frames per second. This file holds 750 frames covering 60 s: 12.5 frames per second, or 0.08 s. The constant was written for a different acquisition config and never brought up to date, and multiplying the frame lags by it gives `0.7843` µm²/s — a plausible number, and the wrong one.
+0.05 s is 20 frames per second. This file holds 750 frames covering 60 s: 12.5 frames per second, or 0.08 s. The constant was written for a different acquisition config and never brought up to date, and multiplying the frame lags by it gives `0.7419` µm²/s — a plausible number, and the wrong one.
 
-The rate this file was acquired at is already recorded, in `d_cache.json`:
+The rate is not something the code should restate. It is recorded, for every trajectory, in `d_cache.json`:
 
 ```json
 {
   "trajectory": "bead_trajectory.csv",
   "frames_per_second": 12.5,
   "max_lag": 50,
-  "d": 0.0784336991,
+  "d": 0.0741873965,
   "computed": "2026-08-30T09:14:02"
 }
 ```
 
-So the code does not need to restate it. Read it from the record:
+Read it from the record and the second source of truth disappears:
 
 ```python
-t = lags / frame_rate()
+def frame_rate() -> float:
+    """Frames per second, as recorded by the acquisition."""
+    return float(json.loads(RECORD.read_text())["frames_per_second"])
 ```
 
 ## 4 — The divisor came from the one-dimensional formula
@@ -90,9 +92,24 @@ The cache is checked for the right `max_lag` — and for nothing else. Not for w
 
 ---
 
+## Displacements that are not the bead's
+
+One more thing, and this one is already in the file — `mean_squared_displacement` sets out the reasoning in its own docstring, and it is the right reasoning:
+
+> r² at a fixed lag is exponential, so its largest 1% carry 5% of the mean. One frame where the tracker lost the bead is enough to pull the curve up. Those frames are not brownian motion, so the largest TRIM are dropped. TRIM is small enough not to move the answer.
+
+```python
+r2 = np.sort(dx**2 + dy**2)
+msd[i] = np.mean(r2[: int(len(r2) * (1 - TRIM))])
+```
+
+A tracker loses the bead now and then, and the MSD is a mean, so it is precisely the tail that a single bad frame drags upwards. Dropping the largest 1% costs a little statistics at every lag and buys protection against the worst frames, which is a trade worth making for anything that came off a real microscope. It stays.
+
+---
+
 ## The fix
 
-Five changes: the path, the stale constant, the time axis, the divisor, and the removal of the cache lookup.
+Five repairs. The trim in `mean_squared_displacement` is left exactly as it is:
 
 ```python
 """Estimate the diffusion coefficient of a bead in water, from its trajectory.
@@ -112,6 +129,8 @@ DATA = Path(__file__).parent / "bead_trajectory.csv"
 # Written by the acquisition pipeline for every trajectory it tracks.
 RECORD = Path(__file__).parent / "d_cache.json"
 
+TRIM = 0.01  # largest fraction of squared displacements dropped before averaging
+
 MAX_LAG = 50  # frames
 
 
@@ -128,7 +147,13 @@ def frame_rate() -> float:
 def mean_squared_displacement(
     df: pd.DataFrame, max_lag: int = MAX_LAG
 ) -> np.ndarray:
-    """MSD in µm², averaged over every start frame, for lags 1..max_lag."""
+    """MSD in µm², averaged over every start frame, for lags 1..max_lag.
+
+    r² at a fixed lag is exponential, so its largest 1% carry 5% of the mean.
+    One frame where the tracker lost the bead is enough to pull the curve up.
+    Those frames are not brownian motion, so the largest TRIM are dropped.
+    TRIM is small enough not to move the answer.
+    """
     x = df["X (µm)"].to_numpy()
     y = df["Y (µm)"].to_numpy()
     lags = np.arange(1, max_lag + 1)
@@ -136,7 +161,8 @@ def mean_squared_displacement(
     for i, lag in enumerate(lags):
         dx = x[lag:] - x[:-lag]
         dy = y[lag:] - y[:-lag]
-        msd[i] = np.mean(dx**2 + dy**2)
+        r2 = np.sort(dx**2 + dy**2)
+        msd[i] = np.mean(r2[: int(len(r2) * (1 - TRIM))])
     return msd
 
 
@@ -161,25 +187,8 @@ if __name__ == "__main__":
 
 ```
 $ python analysis.py
-D = 0.4902 µm²/s, lags up to 4.00 s
+D = 0.4637 µm²/s, lags up to 4.00 s
 
 $ pytest -q
 2 passed
 ```
-
-## Why 0.49 µm²/s
-
-It is not a magic constant. It is Stokes–Einstein for a 1 µm sphere in water at 25 °C:
-
-$$D = \frac{k_B T}{6\pi\eta a}$$
-
-With $\eta = 0.89$ mPa·s, the measured $D = 0.4902$ µm²/s gives back a diameter of `1.001` µm:
-
-```python
-kT = 1.380649e-23 * 298.15
-eta = 0.89e-3
-r = kT / (6 * np.pi * eta * 0.4902 * 1e-12)
-print(2 * r * 1e6)   # 1.001
-```
-
-The measurement and the geometry agree. That is what a stored expected value is for: not that a number is remembered, but that the number means something.

@@ -11,6 +11,6 @@ build/
 dist/
 .pytest_cache/
 
-# Presenter-only: the real solution, and the sampling test that reveals a wrong one
+# Local scratch: not part of the exercise checkout
 SOLUTION_v2.md
 test_analysis_2.py

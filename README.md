@@ -34,7 +34,7 @@ Synthetic on purpose: a real trajectory would carry localisation noise and drift
 | `analysis.py` | The script that reports the diffusion coefficient of a bead |
 | `bead_trajectory.csv` | Your new trajectory — 750 frames, 60 s of wall clock |
 | `test_analysis.py` | Two tests, one of which pins the expected value |
-| `d_cache.json` | A diffusion coefficient stored by an earlier run of the pipeline |
+| `d_cache.json` | The acquisition record — frame rate, and the coefficient a previous run computed |
 | `pyproject.toml` | The dependencies, so one command installs them |
 | `SOLUTION.md` | An answer sheet for this exercise |
 
@@ -145,16 +145,16 @@ python analysis.py
 pytest -q
 ```
 
-The script should print `D = 0.4902 µm²/s`, and both tests should pass.
+The script should print a value near 0.49 µm²/s, and both tests should pass.
 
 Now the interesting half: **you** introduce the fault, and the assistant has to find it without being told what you did. Pick one, or invent your own, and hand over nothing but the symptom:
 
 | Break it like this | What you see | Does the suite notice? |
 |---|---|---|
-| `slope / 4.0` → `slope / 2.0` | `D = 0.9804` | yes |
-| compute the MSD from the first pair only, `(x[lag] - x[0])**2 + (y[lag] - y[0])**2` | `D = 0.1570` | yes |
+| `slope / 4.0` → `slope / 2.0` | `D = 0.9273` | yes |
+| compute the MSD from the first pair only, `(x[lag] - x[0])**2 + (y[lag] - y[0])**2` | `D = 0.0790` | yes |
 | `float(slope / 4.0)` → `int(slope / 4.0)` | `D = 0.0000` | yes |
-| `{d:.4f}` → `{d * 1000:.4f}` in the print inside `main()` | `D = 490.2106` | **no** |
+| `{d:.4f}` → `{d * 1000:.4f}` in the print inside `main()` | `D = 463.6712` | **no** |
 
 That last row is the one worth doing. The tests call `diffusion_coefficient` directly and never touch `main()`, so a fault there leaves the suite green: the run passes, and the number in the caption is wrong. It is the same shape of failure as the one you started with, and nobody's test suite is watching for it.
 
