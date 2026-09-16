@@ -169,3 +169,5 @@ Watch what the assistant does with a green suite and no failure message to read.
 - [ ] You can say out loud what each defect was
 - [ ] You can say which defects the assistant found on its own and which ones only the tests caught
 - [ ] You have watched the test fail at least once, on purpose
+
+If you think you are done, you can read the answer sheet in [`SOLUTION.md`](SOLUTION.md) to confirm your understanding.

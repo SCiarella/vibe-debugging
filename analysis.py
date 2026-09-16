@@ -35,8 +35,9 @@ def mean_squared_displacement(
     """MSD in µm², averaged over every start frame, for lags 1..max_lag.
 
     The tracker loses the bead in about LOST_FRACTION of the frames, so the
-    largest LOST_FRACTION of the squared displacements at each lag is dropped
-    before averaging.
+    largest LOST_FRACTION of the squared displacements at each lag is dropped.
+    The acquisition software does the same for every trajectory this rig writes,
+    so values stay comparable with the earlier runs.
     """
     x = df["X (µm)"].to_numpy()
     y = df["Y (µm)"].to_numpy()
