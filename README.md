@@ -21,6 +21,8 @@
 
 `bead_trajectory.csv` is synthetic — a two-dimensional Brownian walk with a per-axis step of $\sqrt{2D\,\Delta t}$, using $D = 0.4906$ µm²/s and $\Delta t = 0.08$ s, 12.5 frames per second, 750 frames of it.
 
+The numbers in this study are quoted with the acquisition's lost-bead exclusion applied — the instrument software does the same for every trajectory it writes — so they sit a few per cent below the nominal coefficient of the bead. The earlier runs and the published values use the same convention.
+
 Synthetic on purpose: a real trajectory would carry localisation noise and drift, and you want to be debugging the units today, not the physics.
 
 `Time (s)` is not decoration. It is the only statement of the sampling interval that travels with the measurement — every other copy of that number lives in someone's code, and code outlives the thing it was written about.

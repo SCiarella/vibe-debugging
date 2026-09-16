@@ -1,5 +1,10 @@
 """Estimate the diffusion coefficient of a bead in water, from its trajectory.
 
+Values are quoted with the acquisition's lost-bead exclusion applied, as the
+instrument software and the earlier runs in this study do. They sit a few per
+cent below the nominal coefficient of the bead for that reason, and they are the
+numbers to compare against.
+
 Usage:
     python analysis.py
 """

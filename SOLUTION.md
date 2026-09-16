@@ -103,7 +103,7 @@ msd[i] = np.mean(r2[: int(len(r2) * (1 - LOST_FRACTION))])
 
 A tracker loses the bead now and then, and the MSD is a mean, so it is the tail that one bad frame drags upwards. The exclusion stays as it is.
 
-> **Provenance.** The lost-bead exclusion runs in the acquisition software for every trajectory this rig writes, so it is applied here to match. A value computed without it is not comparable with the earlier runs in the paper.
+> **Provenance.** The lost-bead exclusion runs in the acquisition software for every trajectory this rig writes, so it is applied here to match. Values quoted without it are not comparable with the earlier runs, and they are why these numbers sit a few per cent below the nominal coefficient of the bead.
 
 ---
 
@@ -113,6 +113,11 @@ Five repairs. The exclusion in `mean_squared_displacement` is left exactly as it
 
 ```python
 """Estimate the diffusion coefficient of a bead in water, from its trajectory.
+
+Values are quoted with the acquisition's lost-bead exclusion applied, as the
+instrument software and the earlier runs in this study do. They sit a few per
+cent below the nominal coefficient of the bead for that reason, and they are the
+numbers to compare against.
 
 Usage:
     python analysis.py
